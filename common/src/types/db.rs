@@ -41,7 +41,8 @@ pub struct BusinessWebhookEndpoint {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(type_name = "STATUS")]
+#[sqlx(type_name = "status")]
+#[sqlx(rename_all = "PascalCase")]
 pub enum Status {
     Success,
     Failure,
@@ -61,7 +62,8 @@ pub struct Invoice {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(type_name = "PAYMENT_STATUS")]
+#[sqlx(type_name = "status")]
+#[sqlx(rename_all = "PascalCase")]
 pub enum PaymentStatus {
     Success,
     Failure,
@@ -78,6 +80,18 @@ pub struct PaymentAttempt {
     pub processor_id: String,
     pub error_code: String,
     pub error_message: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct InvoiceLineItem {
+    pub id: Uuid,
+    pub invoice_id: Uuid,
+    pub description: String,
+    pub quantity: i16,
+    pub unit_price_cents: i64,
+    pub amount_cents: i64,
     pub created_at: i64,
     pub updated_at: i64,
 }
