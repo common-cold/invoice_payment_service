@@ -24,6 +24,11 @@ async fn main() -> std::io::Result<()> {
             .service(routes::customer::create_customer)
             .service(routes::customer::get_customer_by_id)
             .service(routes::invoice::create_invoice)
+            .service(routes::invoice::get_invoice)
+            .service(routes::invoice::pay_invoice)
+            .service(routes::invoice::process_pending_payments)
+            .service(routes::mock_payment::process_payment)
+            .service(routes::mock_payment::get_psp_payment_attempts)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

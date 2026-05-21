@@ -1,5 +1,5 @@
 use anyhow::{Ok, Result};
-use bcrypt::{DEFAULT_COST, BcryptResult, hash, verify};
+use bcrypt::{DEFAULT_COST, hash, verify};
 
 pub fn hash_string(input: &str) -> Result<String> {
     let result = hash(input, DEFAULT_COST)?;

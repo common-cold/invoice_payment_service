@@ -10,3 +10,6 @@ CREATE TABLE business_customers (
     
     CONSTRAINT unique_business_email UNIQUE (business_id, email_id)
 );
+
+CREATE INDEX idx_business_customers_business_id ON business_customers(business_id);
+CREATE INDEX idx_business_customers_email_id ON business_customers(email_id);

@@ -8,3 +8,5 @@ CREATE TABLE business_keys (
     is_active BOOLEAN NOT NULL,
     created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
 );
+
+CREATE INDEX idx_business_keys_business_id ON business_keys(business_id);

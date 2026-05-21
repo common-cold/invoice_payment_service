@@ -8,3 +8,5 @@ CREATE TABLE invoice_line_items (
     created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
     updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
 );
+
+CREATE INDEX idx_invoice_line_items_invoice_id ON invoice_line_items(invoice_id);
