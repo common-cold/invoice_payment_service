@@ -288,3 +288,7 @@ If this shipped tomorrow, the top 3 critical gaps are:
 2. **Business auth keys** — Business auth keys are generated and stored but authentication middleware is not implemented. All API endpoints are currently unprotected.
 
 3. **No mechanism for flagging invoice as Void/Uncollectible** — There is no API endpoint to transition invoices to Void or Uncollectible states, despite these being valid state transitions in the design.
+
+
+## 8. Demo Video
+https://drive.google.com/file/d/11gfcxOCFrhRqcWwf3pQoe-UtpxsDVe_2/view?usp=sharing
