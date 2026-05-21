@@ -188,6 +188,9 @@
 
 ### States
 
+<img width="1106" height="657" alt="image" src="https://github.com/user-attachments/assets/1b43bb39-b1a1-4005-a7b1-612eef461c80" />
+
+
 - **draft** — invoice created, not yet sent. Line items still editable.
 - **open** — finalized and sent to customer. Amount locked. Payment attempts can now be made.
 - **paid** — a payment attempt succeeded. Money collected. Terminal.
