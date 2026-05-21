@@ -213,7 +213,16 @@
 
 ### (a) Two clients call POST /invoices/{id}/pay for the same invoice at the same instant
 
-If both clients use the same idempotency key, the second request finds the existing payment attempt and returns it immediately. If they use different idempotency keys, the row-level lock (FOR UPDATE) on the invoice ensures only one transaction can proceed at a time, preventing duplicate charges. The mechanism uses database transactions with idempotency key lookup and row-level locking via `SELECT ... FOR UPDATE` in `get_invoice_by_id_with_tx`, which is released when the transaction commits after `update_invoice_status_with_tx`.
+**Same idempotency key:** The second request finds the existing payment attempt and returns it immediately without processing.
+
+**Different idempotency keys:**
+1. A row-level lock (`FOR UPDATE`) is acquired on the invoice, ensuring only one request proceeds at a time.
+2. Inside the lock, we check if the invoice is in `Paid` status (reject if true).
+3. We then check if any payment attempt for this invoice is in `Pending` status (reject if true).
+4. If no pending attempts exist, a new payment attempt is created with `Pending` status and the transaction is committed, releasing the lock.
+5. The PSP is then called, and the payment attempt status is updated to `Success`, `Failure`, or remains `Pending` based on the response.
+
+The `Pending` check prevents concurrent requests from creating duplicate payment attempts. To avoid indefinite rejection due to stuck `Pending` attempts, a timeout mechanism can be implemented: if the reconciliation cron finds a `Pending` status beyond a configured timeout, it marks it as `Failure`, allowing the customer to retry.
 
 ### (b) The mock PSP times out (tok_timeout, 30 s)
 
@@ -229,7 +238,7 @@ The service returns the existing payment attempt without processing the new requ
 
 ### (e) An invoice in paid state receives another POST /pay
 
-The service does nto allow creating a payment whose invcie is already in PAID state. This check is done after fetching the invoice from db.
+The service does nto allow creating a payment whose invoice is already in PAID state. This check is done after fetching the invoice from db.
 
 ## 4. Webhook Design
 

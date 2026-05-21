@@ -1,14 +1,19 @@
 # AI Tool Usage
 
-- Windsurf for api boilerplate and writign migrations. Shape and index for tables was decided by me
-- Cursor to understand state machine's states such as draft/void/uncollectible and to validate my state design pattern and its trigger
+1. Windsurf 
 
+## Design Documentation
 
-# Decisions made by me
+Created `design.md` with the following sections based on analysis of the actual codebase:
 
-- While storing invoice and invoice items in db, I made these two db ops coupled into one txn.
-- Assuming that the PSP would also store payment_attmepts in their own db, and integarating that into my invoice/{id}/flow
-- Reconcile flow on invocie service to regularly check the status of PENDING payemnt_attempts by fetching status from PSP.
+1. **Data Model** - JSON-like structure for all 8 database tables with columns, indexes, constraints, and relations
+2. **Invoice State Machine** - States, valid transitions, and invalid transitions
+3. **Payment Correctness & Failure Modes** - Analysis of concurrent payments, timeouts, crashes, idempotency, and state enforcement
+4. **Webhook Design** - Placeholder (not implemented)
+5. **API Key Model** - Generation, storage, transmission, rotation, revocation, and blast radius
+6. **What You Cut and Why** - Webhook implementation and business auth key usage
+7. **Production Readiness Gap** - Refunds, business auth keys, and Void/Uncollectible flagging
 
-# AI's correctness
-- While thinking for solution for concurrent payemnts on same invoice, i was hesitant on using row locking as the lock was acquired till full api call to PSP. Although i have maintained a timeout of 7 secs. But the tradeoff of 7s compared to optimistic locking was very small. So it helped me in deciding row locking 
+## Code Changes
+
+Added row-level locking (`FOR UPDATE`) to `get_invoice_by_id_with_tx` in `db/src/lib.rs` to prevent duplicate charges when concurrent payment requests use different idempotency keys.

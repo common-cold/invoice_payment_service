@@ -79,12 +79,6 @@ pub async fn pay_invoice(
     }
 
     let invoice = invoice_option.unwrap();
-    match invoice.status {
-        Status::Paid => {
-            return HttpResponse::BadRequest().body(format!("This invoice is already paid"))
-        }
-        _ => {}
-    }
     let mut local_invoice = LocalInvoice::from(invoice.clone());
 
     let invoice_total = invoice.total_cents;
@@ -95,7 +89,23 @@ pub async fn pay_invoice(
         return HttpResponse::Ok().json(attempt);
     }
 
-    let _ = app_data.db.create_payment_attempt_with_tx(
+    match invoice.status {
+        Status::Paid => {
+            let _ = tx.commit().await;
+            return HttpResponse::BadRequest().body(format!("This invoice is already paid"))
+        }
+        _ => {}
+    }
+
+    let pending_attempts = app_data.db.get_pending_payment_attempts_by_invoice_id_with_tx(invoice_id_value, &mut tx).await;
+    if let Ok(attempts) = pending_attempts {
+        if !attempts.is_empty() {
+            let _ = tx.commit().await;
+            return HttpResponse::BadRequest().body(format!("A payment is already in progress for this invoice"));
+        }
+    }
+
+    let payment_attempt_result = app_data.db.create_payment_attempt_with_tx(
         invoice_id_value,
         PaymentStatus::Pending,
         idempotency_key_uuid,
@@ -104,6 +114,15 @@ pub async fn pay_invoice(
         None,
         &mut tx,
     ).await;
+
+    if let Err(e) = payment_attempt_result {
+        let _ = tx.rollback().await;
+        return HttpResponse::InternalServerError().body(format!("failed to create payment attempt: {}", e));
+    }
+
+    let payment_attempt = payment_attempt_result.unwrap();
+
+    let _ = tx.commit().await;
 
     let payment_service_request = PaymentServiceRequest {
         invoice_id: invoice_id_value,
@@ -127,13 +146,12 @@ pub async fn pay_invoice(
                return HttpResponse::InternalServerError().body(format!("State Machine error: {}", e)); 
             }
             local_invoice.state = state_result.unwrap();
-            let _ = app_data.db.update_payment_attempt_with_tx(
+            let _ = app_data.db.update_payment_attempt(
                 idempotency_key_uuid,
                 PaymentStatus::Pending,
                 None,
                 None,
                 None,
-                &mut tx
             ).await;
             return HttpResponse::InternalServerError().body(format!("psp timeout or error: {}", e));
         }
@@ -145,13 +163,12 @@ pub async fn pay_invoice(
             return HttpResponse::InternalServerError().body(format!("State Machine error: {}", e)); 
         }
         local_invoice.state = state_result.unwrap();
-        let _ = app_data.db.update_payment_attempt_with_tx(
+        let _ = app_data.db.update_payment_attempt(
             idempotency_key_uuid,
             PaymentStatus::Pending,
             None,
             None,
             None,
-            &mut tx
         ).await;
         return HttpResponse::InternalServerError().body("psp returned server error");
     }
@@ -164,13 +181,12 @@ pub async fn pay_invoice(
             return HttpResponse::InternalServerError().body(format!("State Machine error: {}", e)); 
         }
         local_invoice.state = state_result.unwrap();
-        let _ = app_data.db.update_payment_attempt_with_tx(
+        let _ = app_data.db.update_payment_attempt(
             idempotency_key_uuid,
             PaymentStatus::Pending,
             None,
             None,
             None,
-            &mut tx
         ).await;
         return HttpResponse::InternalServerError().body(format!("failed to parse psp response: {}", e));
     }
@@ -181,47 +197,44 @@ pub async fn pay_invoice(
         PaymentServiceStatus::Succeeded => {
             let state_result = local_invoice.state.pay(&invoice);
             if let Err(e) = state_result {
-                return HttpResponse::InternalServerError().body(format!("State Machine error: {}", e)); 
+                return HttpResponse::InternalServerError().body(format!("State Machine error: {}", e));
             }
             local_invoice.state = state_result.unwrap();
-            app_data.db.update_payment_attempt_with_tx(
+            app_data.db.update_payment_attempt(
                 idempotency_key_uuid,
                 PaymentStatus::Success,
                 Some(invoice_total),
                 None,
                 None,
-                &mut tx,
             ).await
         },
         PaymentServiceStatus::Failed => {
             let state_result = local_invoice.state.open(&invoice);
             if let Err(e) = state_result {
-                return HttpResponse::InternalServerError().body(format!("State Machine error: {}", e)); 
+                return HttpResponse::InternalServerError().body(format!("State Machine error: {}", e));
             }
             local_invoice.state = state_result.unwrap();
             let code_str = payment_service_response.code.as_ref().map(|c| format!("{:?}", c)).unwrap_or(String::from("unknown"));
-            app_data.db.update_payment_attempt_with_tx(
+            app_data.db.update_payment_attempt(
                 idempotency_key_uuid,
                 PaymentStatus::Failure,
                 None,
                 Some(code_str.clone()),
                 Some(code_str),
-                &mut tx,
             ).await
         },
         PaymentServiceStatus::Pending => {
             let state_result = local_invoice.state.open(&invoice);
             if let Err(e) = state_result {
-                return HttpResponse::InternalServerError().body(format!("State Machine error: {}", e)); 
+                return HttpResponse::InternalServerError().body(format!("State Machine error: {}", e));
             }
             local_invoice.state = state_result.unwrap();
-            app_data.db.update_payment_attempt_with_tx(
+            app_data.db.update_payment_attempt(
                 idempotency_key_uuid,
                 PaymentStatus::Pending,
                 None,
                 None,
                 None,
-                &mut tx,
             ).await
         }
     };
@@ -235,9 +248,7 @@ pub async fn pay_invoice(
         _ => Status::Open,
     };
 
-    let _ = app_data.db.update_invoice_status_with_tx(invoice_id_value, status, &mut tx).await;
-
-    let _ = tx.commit().await;
+    let _ = app_data.db.update_invoice_status(invoice_id_value, status).await;
 
     match updated_payment_attempt {
         Ok(attempt) => HttpResponse::Ok().json(attempt),

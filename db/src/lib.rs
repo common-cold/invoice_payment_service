@@ -434,6 +434,36 @@ impl Database {
         Ok(payment_attempt)
     }
 
+    pub async fn get_pending_payment_attempts_by_invoice_id_with_tx(
+        &self,
+        invoice_id: Uuid,
+        tx: &mut Transaction<'_, Postgres>,
+    ) -> anyhow::Result<Vec<PaymentAttempt>> {
+        let payment_attempts = sqlx::query_as!(
+            PaymentAttempt,
+            r#"
+                SELECT
+                    id,
+                    invoice_id,
+                    status AS "status: PaymentStatus",
+                    idempotency_key,
+                    amount_cents,
+                    error_code,
+                    error_message,
+                    created_at,
+                    updated_at
+                FROM payment_attempts
+                WHERE invoice_id = $1 AND status = $2
+            "#,
+            invoice_id,
+            PaymentStatus::Pending as PaymentStatus,
+        )
+        .fetch_all(tx.as_mut())
+        .await?;
+
+        Ok(payment_attempts)
+    }
+
     pub async fn update_payment_attempt(
         &self,
         idempotency_key: Uuid,

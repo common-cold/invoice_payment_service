@@ -210,12 +210,15 @@ async fn test_idempotency() {
         .await
         .expect("Failed to send second payment request");
 
+
     assert!(second_response.status().is_success());
     let second_payment_attempt: serde_json::Value = second_response
         .json()
         .await
         .expect("Failed to parse second payment attempt");
     let second_attempt_id = second_payment_attempt["id"].as_str().expect("Missing attempt id");
+
+    println!("{:?}", second_payment_attempt);
 
     // Assert same payment attempt is returned (same id)
     assert_eq!(
